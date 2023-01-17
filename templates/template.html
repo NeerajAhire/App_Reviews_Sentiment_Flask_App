@@ -1,0 +1,46 @@
+<style>
+html {
+    display: table;
+    margin: auto;
+}
+
+body {
+    display: table-cell;
+    vertical-align: middle;
+}
+
+div {
+    display: table-cell;
+    vertical-align: middle;
+}
+
+form {
+    display: table-cell;
+    vertical-align: middle;
+}
+</style>
+
+<html lang="en" dir="ltr">
+  <head>
+    <meta charset="utf-8">
+    <title>Flask Parent Template</title>
+  </head>
+  <body>
+    <header>
+      <div class="container">
+        <h1 style="color:DarkBlue;margin-bottom:0;">App Reviews Sentiment Analysis</h1>
+        <h4 style="margin-top:0;">&nbsp;&nbsp;(Note: It takes about half a minute for output to be generated)</h4>
+        <strong><nav style="margin-top:30px;margin-bottom:25px;">
+            <ul class="menu">
+              <li><a href="{{ url_for('about') }}">About</a></li>
+              <li><a href="{{ url_for('predict') }}">Home</a></li>
+            </ul>
+          </nav></strong>
+        </div>
+      </header>
+
+      {% block content %}
+      {% endblock %}
+
+  </body>
+</html>

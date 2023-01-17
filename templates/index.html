@@ -1,0 +1,16 @@
+<html>
+  <title>App Reviews</title>
+  <body>
+    {% extends "template.html" %}
+    {% block content %}
+
+    <form action = / method="POST", style="margin-bottom:50px;">
+      <label for="x_in">&nbsp;&nbsp;&nbsp;Enter App Name:</label>
+      <input type="text" name="x_in" id="x_in" size="15">
+      <input type="submit" value="Generate Result" />
+    </form>
+        <h3 style="margin-top:40px"><p><b> {{ rating }} </b></p></h3>
+        <object data="data:image/png;base64, {{ plot_url }}"/>
+    {% endblock %}
+  </body>
+</html>
