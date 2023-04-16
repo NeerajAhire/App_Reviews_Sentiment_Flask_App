@@ -1,9 +1,9 @@
 from flask import Flask, render_template, request
+import requests
 import matplotlib
 matplotlib.use('Agg')
 from matplotlib import pyplot as plt
 import pandas as pd
-from google_play_scraper import search, Sort, reviews
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 from io import BytesIO
 import base64
@@ -17,29 +17,33 @@ app = Flask(__name__)
 def predict():
       if request.method == 'POST':
            x_in = request.form.get('x_in')
-           sr = search(x_in,
-                       lang="en",  # defaults to 'en'
-                       country="us",  # defaults to 'us'
-                       n_hits=1  # defaults to 30 (= Google's maximum)
-                       )
 
-           aid = sr[0]['appId']
-           app_n = sr[0]['title']
-           rating = "The Rating for " + app_n + " is- " + str(sr[0]['score'])
+           url_s = "https://store-apps.p.rapidapi.com/search"
+           querystring_s = {"q": x_in, "region": "us", "language": "en"}
+           headers_s = {
+               "X-RapidAPI-Key": "7c811c2d58msh76ad681a2558b38p15c184jsn7139faf5c00a",
+               "X-RapidAPI-Host": "store-apps.p.rapidapi.com"
+           }
+           response_s = requests.request("GET", url_s, headers=headers_s, params=querystring_s)
+           s = response_s.json()
 
-           result, continuation_token = reviews(
-               aid,
-               lang='en',  # defaults to 'en'
-               country='us',  # defaults to 'us'
-               sort=Sort.NEWEST,  # defaults to Sort.NEWEST
-               count=2000,  # defaults to 100
-               filter_score_with=None  # defaults to None(means all score)
-           )
+           aid = s['data']['apps'][0]['app_id']
+           app_n = s['data']['apps'][0]['app_name']
+           rating = "The Rating for " + app_n + " is- " + str(s['data']['apps'][0]['rating'])
 
-           rpd = pd.DataFrame(result)
+           url_r = "https://store-apps.p.rapidapi.com/app-reviews"
+           querystring_r = {"app_id": aid, "limit": "2000", "region": "us", "language": "en"}
+           headers_r = {
+               "X-RapidAPI-Key": "7c811c2d58msh76ad681a2558b38p15c184jsn7139faf5c00a",
+               "X-RapidAPI-Host": "store-apps.p.rapidapi.com"
+           }
+           response_r = requests.request("GET", url_r, headers=headers_r, params=querystring_r)
+           r = response_r.json()
+           rpd = pd.DataFrame(r['data']['reviews'])
+
            slist = {'Positive': 0, 'Negative': 0, 'Neutral': 0}
            rpdslst = []
-           for i in rpd['content']:
+           for i in rpd['review_text']:
                sval = SentimentIntensityAnalyzer().polarity_scores(i)
                if sval['compound'] >= 0.05:
                    slist['Positive'] += 1
@@ -51,8 +55,8 @@ def predict():
                    slist['Neutral'] += 1
                    rpdslst.append('Neutral')
 
-           rlist = [rpd['score'].to_list().count(1), rpd['score'].to_list().count(2), rpd['score'].to_list().count(3),
-                    rpd['score'].to_list().count(4), rpd['score'].to_list().count(5)]
+           rlist = [rpd['review_rating'].to_list().count(1), rpd['review_rating'].to_list().count(2), rpd['review_rating'].to_list().count(3),
+                    rpd['review_rating'].to_list().count(4), rpd['review_rating'].to_list().count(5)]
 
            fsw = [i.translate(str.maketrans('', '', string.punctuation)) for i in
                   nltk.corpus.stopwords.words('english')]
@@ -64,7 +68,7 @@ def predict():
            fsw = fsw + app_n.split()
            fsw.append('app')
 
-           wlist = rpd['content'].astype('str').to_list()
+           wlist = rpd['review_text'].astype('str').to_list()
            wcnt = {}
            pwcnt = {}
            nwcnt = {}
@@ -99,8 +103,8 @@ def predict():
 
            img = BytesIO()
 
-           fig = plt.figure(figsize=(5,7))
-           gs = fig.add_gridspec(4, 2, hspace=0.7, height_ratios=[1.7, 1, 1, 1],top=0.94)
+           fig = plt.figure(figsize=(15, 10))
+           gs = fig.add_gridspec(4, 4, hspace=0.7, height_ratios=[1.7, 1, 1, 1], top=0.94)
            ax1 = fig.add_subplot(gs[0, 0])
            ax1.pie([slist['Positive'], slist['Negative'], slist['Neutral']],
                    labels=['Positive', 'Negative', 'Neutral'], autopct='%.0f%%')
@@ -108,22 +112,36 @@ def predict():
            ax2 = fig.add_subplot(gs[0, 1])
            ax2.pie(rlist, labels=['1', '2', '3', '4', '5'], autopct='%.0f%%')
            plt.title("Ratings Pie Chart", fontweight="bold", pad=9)
-           ax3 = fig.add_subplot(gs[1, :])
+           ax3 = fig.add_subplot(gs[1, 0:2])
            ax3.bar([wcntl[i][1] for i in range(5)], [wcntl[i][0] for i in range(5)], color='blue', width=0.4)
            plt.title("Most Frequent Words", fontweight="bold", pad=2)
-           ax4 = fig.add_subplot(gs[2, :])
+           ax4 = fig.add_subplot(gs[2, 0:2])
            ax4.bar([pwcntl[i][1] for i in range(5)], [pwcntl[i][0] for i in range(5)], color='green', width=0.4)
            plt.title("Most Frequent Words in Positive Reviews", fontweight="bold", pad=2)
-           ax5 = fig.add_subplot(gs[3, :])
+           ax5 = fig.add_subplot(gs[3, 0:2])
            ax5.bar([nwcntl[i][1] for i in range(5)], [nwcntl[i][0] for i in range(5)], color='red', width=0.4)
            plt.title("Most Frequent Words in Negative Reviews", fontweight="bold", pad=2)
+           ax6 = fig.add_subplot(gs[:, 2:4])
+           plt.title("Most Liked Reviews", fontweight="bold", pad=2)
+           txt = ax6.text(0.055, 0.8, '\"' + rpd.sort_values(['review_likes'], ascending=False)['review_text'].iloc[0] + '\"', fontsize=10, wrap=True)
+           txt._get_wrap_line_width = lambda: 500
+           txt = ax6.text(0.055, 0.5, '\"' + rpd.sort_values(['review_likes'], ascending=False)['review_text'].iloc[1] + '\"',fontsize=10, wrap=True)
+           txt._get_wrap_line_width = lambda: 500
+           txt = ax6.text(0.055, 0.1, '\"'+ rpd.sort_values(['review_likes'], ascending=False)['review_text'].iloc[2] + '\"',fontsize=10, wrap=True)
+           txt._get_wrap_line_width = lambda: 500
+           ax6.xaxis.set_tick_params(labelbottom=False)
+           ax6.yaxis.set_tick_params(labelleft=False)
+           ax6.set_xticks([])
+           ax6.set_yticks([])
 
            plt.savefig(img, format='png')
            plt.close()
            img.seek(0)
            plot_url = base64.b64encode(img.getvalue()).decode()
+           topr = rpd.sort_values(['review_likes'],ascending=False)['review_text'].iloc[0]
 
-           return render_template('index.html', plot_url=plot_url, rating=rating)
+           return render_template('index.html', plot_url=plot_url, rating=rating,
+                                  topr = topr)
 
       return render_template("index.html")
 
@@ -131,6 +149,5 @@ def predict():
 def about():
     return render_template('about.html')
 
-if __name__ == '__main__':
-   app.run()
-
+if __name__ == '__main__' :
+    app.run()
