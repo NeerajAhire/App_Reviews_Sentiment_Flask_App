@@ -17,17 +17,42 @@ app = Flask(__name__)
 def predict():
       if request.method == 'POST':
            x_in = request.form.get('x_in')
-           aid = 'com.quora.android'
-           app_n = 'Quora: the knowledge platform'
+           url_s = "https://store-apps.p.rapidapi.com/search"
+           querystring_s = {"q": x_in, "region": "us", "language": "en"}
+           headers_s = {
+               "X-RapidAPI-Key": "7c811c2d58msh76ad681a2558b38p15c184jsn7139faf5c00a",
+               "X-RapidAPI-Host": "store-apps.p.rapidapi.com"
+           }
+           response_s = requests.request("GET", url_s, headers=headers_s, params=querystring_s)
+           s = response_s.json()
 
-           rating = "The Rating for Quora: the knowledge platform is- 4"
+           aid = s['data']['apps'][0]['app_id']
+           app_n = s['data']['apps'][0]['app_name']
+           rating = "The Rating for " + app_n + " is- " + str(s['data']['apps'][0]['rating'])
 
-           rpd = pd.read_csv('file1.csv', index_col=0)
+           url_r = "https://store-apps.p.rapidapi.com/app-reviews"
+           querystring_r = {"app_id": aid, "limit": "2000", "region": "us", "language": "en"}
+           headers_r = {
+               "X-RapidAPI-Key": "7c811c2d58msh76ad681a2558b38p15c184jsn7139faf5c00a",
+               "X-RapidAPI-Host": "store-apps.p.rapidapi.com"
+           }
+           response_r = requests.request("GET", url_r, headers=headers_r, params=querystring_r)
+           r = response_r.json()
+           rpd = pd.DataFrame(r['data']['reviews'])
 
-           slist = {'Positive': 1125, 'Negative': 801, 'Neutral': 74}
-
-           with open('file2.txt') as f:
-               rpdslst = f.read().splitlines()
+           slist = {'Positive': 0, 'Negative': 0, 'Neutral': 0}
+           rpdslst = []
+           for i in rpd['review_text']:
+               sval = SentimentIntensityAnalyzer().polarity_scores(i)
+               if sval['compound'] >= 0.05:
+                   slist['Positive'] += 1
+                   rpdslst.append('Positive')
+               elif sval['compound'] <= -0.05:
+                   slist['Negative'] += 1
+                   rpdslst.append('Negative')
+               else:
+                   slist['Neutral'] += 1
+                   rpdslst.append('Neutral')
 
            rlist = [rpd['review_rating'].to_list().count(1), rpd['review_rating'].to_list().count(2), rpd['review_rating'].to_list().count(3),
                     rpd['review_rating'].to_list().count(4), rpd['review_rating'].to_list().count(5)]
